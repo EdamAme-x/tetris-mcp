@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import * as v from "valibot";
+import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { toFetchResponse, toReqRes } from "fetch-to-node";
@@ -179,6 +179,58 @@ const getServer = async () => {
         {
           type: "text",
           text: "次のページをすべて削除しました。",
+        },
+      ],
+    }
+  })
+
+  server.tool("nextPage", "次のページに移動します。無い場合は作成します。", async () => {
+    await page.evaluate("pgnext()");
+    return  {
+      content: [
+        {
+          type: "text",
+          text: "次のページに移動しました。",
+        },
+      ],
+    }
+  })
+
+  server.tool("previousPage", "前のページに移動します。", async () => {
+    const  frame = await page.evaluate("frame");
+
+    if (frame === 0) {
+      return  {
+        content: [
+          {
+            type: "text",
+            text: "ここは一番最初のページです。",
+          },
+        ],
+      }
+    }
+
+    await page.evaluate("pgprev()");
+    return  {
+      content: [
+        {
+          type: "text",
+          text: "前のページに移動しました。",
+        },
+      ],
+    }
+  })
+
+  server.tool("moveToPage", "指定したページに移動します。", {
+    pageNumber: z.string().regex(/^[1-9][0-9]*$/),
+  }, async ({ pageNumber }) => {
+    await page.evaluate(`document.getElementById("pgnm").value = ${pageNumber}`);
+    await page.evaluate(`pgset()`);
+    return  {
+      content: [
+        {
+          type: "text",
+          text: `ページ${pageNumber}に移動しました。`,
         },
       ],
     }
