@@ -3,37 +3,37 @@ import * as v from "valibot";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { toFetchResponse, toReqRes } from "fetch-to-node";
-import puppeteer from 'puppeteer';
+import puppeteer from "puppeteer";
 
 async function createBrowser() {
-    const browser = await puppeteer.launch({
-      headless: true,
-      devtools: false,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--disable-features=IsolateOrigins,site-per-process',
-        '--single-process',
-        '--no-zygote',
-      ]
-    });
-    console.log('Browser launched');
-    return browser
-  }
+  const browser = await puppeteer.launch({
+    headless: true,
+    devtools: false,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--disable-gpu",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--single-process",
+      "--no-zygote",
+    ],
+  });
+  console.log("Browser launched");
+  return browser;
+}
 
 const browser = await createBrowser();
 
 const page = await browser.newPage();
 
-const fumen = await page.goto('https://fumen.zui.jp/');
+const fumen = await page.goto("https://fumen.zui.jp/");
 
-if (fumen?.ok)  {
-  console.log('Fumen loaded');
+if (fumen?.ok) {
+  console.log("Fumen loaded");
 } else {
-  console.log('Fumen failed to load');
+  console.log("Fumen failed to load");
   await browser.close();
   process.exit(1);
 }
@@ -41,12 +41,12 @@ if (fumen?.ok)  {
 await page.waitForSelector("#fld");
 
 const isEmpty = (style: string) => {
-  return style.includes("rgb(0, 0, 0)")
-}
+  return style.includes("rgb(0, 0, 0)");
+};
 
-const getMailBoard = async ()  =>  {
-    return [...await page.$$("#fld")].slice(30).slice(0,   200);
-}
+const getMailBoard = async () => {
+  return [...(await page.$$("#fld"))].slice(30).slice(0, 200);
+};
 
 const getServer = async () => {
   const server = new McpServer({
@@ -58,15 +58,16 @@ const getServer = async () => {
     const board = await getMailBoard();
 
     for (let i = 0; i < board.length; i++) {
-      const cell = await board[i]
-      if (!cell) return  {
-        content: [
-          {
-            type: "text",
-            text: "クリアに失敗しました。",
-          },
-        ],
-      };
+      const cell = await board[i];
+      if (!cell)
+        return {
+          content: [
+            {
+              type: "text",
+              text: "クリアに失敗しました。",
+            },
+          ],
+        };
 
       if (!isEmpty(await cell.evaluate((node) => node.getAttribute("style")))) {
         await cell.click();
@@ -87,12 +88,63 @@ const getServer = async () => {
     "getCurrentBoard",
     "現在の盤面を取得します。アンダーバーは空白、Xはお邪魔ブロック(汎用ブロック)、それ以外のアルファベットは、ミノの名残を表します。例えば、ZはZミノの名残を表します。二次元配列で表現します。",
     async () => {
+      const mapping = [
+        ["rgb(0, 0, 0)", "_"],
+        ["rgb(153, 153, 153)", "X"],
+        ["rgb(153, 102, 0)", "L"],
+        ["rgb(0, 0, 187)", "J"],
+        ["rgb(0, 153, 0)", "S"],
+        ["rgb(153, 0, 0)", "Z"],
+        ["rgb(0, 153, 153)", "I"],
+        ["rgb(153, 153, 0)", "O"],
+        ["rgb(153, 0, 153)", "T"],
+      ];
+
+      const board = await getMailBoard();
+
+      let result: string[][] = [];
+      let p = 0;
+      const separator = 10;
+
+      for (let i = 0; i < board.length; i++) {
+        const cell = await board[i];
+        if (!cell)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "取得に失敗しました。",
+              },
+            ],
+          };
+
+        const style = await cell.evaluate((node) => node.getAttribute("style"));
+        const color = mapping.find((m) => style.includes(m[0]))?.[1];
+        if (!color)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "取得に失敗しました。",
+              },
+            ],
+          };
+
+        const line = result[Math.floor(p / separator)];
+
+        if (!line) {
+          result.push([]);
+        }
+
+        line!.push(color);
+        p++;
+      }
+
       return {
         content: [
           {
             type: "text",
-            // [[_, _, Z, Z, _, _]]
-            text: "",
+            text: "[" + result.map((row) => row.join(",")).join("],[") + "]",
           },
         ],
       };
@@ -107,7 +159,7 @@ const app = new Hono();
 app.post("/mcp", async (c) => {
   const { req, res } = toReqRes(c.req.raw);
 
-  const server = await  getServer();
+  const server = await getServer();
 
   try {
     const body = await c.req.json();
