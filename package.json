@@ -1,0 +1,19 @@
+{
+  "name": "tetris-mcp",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "fetch-to-node": "^2.1.0",
+    "hono": "^4.7.8",
+    "puppeteer": "^24.8.0",
+    "valibot": "^1.0.0"
+  }
+}
