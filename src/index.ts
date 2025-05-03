@@ -7,17 +7,10 @@ import puppeteer from "puppeteer";
 
 async function createBrowser() {
   const browser = await puppeteer.launch({
-    headless: true,
-    devtools: false,
+    headless: false,
     args: [
       "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
       "--disable-gpu",
-      "--disable-features=IsolateOrigins,site-per-process",
-      "--single-process",
-      "--no-zygote",
     ],
   });
   console.log("Browser launched");
@@ -39,13 +32,15 @@ if (fumen?.ok) {
 }
 
 await page.waitForSelector("#fld");
+await page.evaluate("window.alert = () => {}");
+await page.evaluate("window.confirm = () => true");
 
 const isEmpty = (style: string) => {
-  return style.includes("rgb(0, 0, 0)");
+  return style.includes("#000000");
 };
 
 const getMailBoard = async () => {
-  return [...(await page.$$("#fld"))].slice(30).slice(0, 200);
+  return (await page.$$("#fld")).slice(30).slice(0, 200);
 };
 
 const getServer = async () => {
@@ -64,13 +59,16 @@ const getServer = async () => {
           content: [
             {
               type: "text",
-              text: "クリアに失敗しました。",
+              text: "クリアに失敗しました。(Cell not found)",
             },
           ],
         };
 
       if (!isEmpty(await cell.evaluate((node) => node.getAttribute("style")))) {
         await cell.click();
+        if  (!isEmpty(await cell.evaluate((node) => node.getAttribute("style")))) {
+            await cell.click();
+        }
       }
     }
 
@@ -89,7 +87,7 @@ const getServer = async () => {
     "現在の盤面を取得します。アンダーバーは空白、Xはお邪魔ブロック(汎用ブロック)、それ以外のアルファベットは、ミノの名残を表します。例えば、ZはZミノの名残を表します。二次元配列で表現します。",
     async () => {
       const mapping = [
-        ["rgb(0, 0, 0)", "_"],
+        ["#000000", "_"],
         ["rgb(153, 153, 153)", "X"],
         ["rgb(153, 102, 0)", "L"],
         ["rgb(0, 0, 187)", "J"],
@@ -113,7 +111,7 @@ const getServer = async () => {
             content: [
               {
                 type: "text",
-                text: "取得に失敗しました。",
+                text: "取得に失敗しました。(Cell not found)",
               },
             ],
           };
@@ -125,15 +123,16 @@ const getServer = async () => {
             content: [
               {
                 type: "text",
-                text: "取得に失敗しました。",
+                text: "取得に失敗しました。(Color not found)",
               },
             ],
           };
 
-        const line = result[Math.floor(p / separator)];
+        let line = result[Math.floor(p / separator)];
 
         if (!line) {
           result.push([]);
+          line = result[result.length - 1];
         }
 
         line!.push(color);
@@ -150,6 +149,40 @@ const getServer = async () => {
       };
     }
   );
+
+  server.tool("getPageNumber", "現在の何ページ目かを取得します。", async () => {
+    return  {
+      content: [
+        {
+          type: "text",
+          text: (await page.evaluate("frame + 1"))!.toString(),
+        },
+      ],
+    }
+  })
+
+  server.tool("getPageCount", "現在の何ページあるかを取得します。", async () => {
+    return  {
+      content: [
+        {
+          type: "text",
+          text: (await page.evaluate("pgnum"))!.toString(),
+        },
+      ],
+    }
+  })
+
+  server.tool("removeAllNextPage", "次のページをすべて削除します。", async () => {
+    await page.evaluate("delpage()");
+    return  {
+      content: [
+        {
+          type: "text",
+          text: "次のページをすべて削除しました。",
+        },
+      ],
+    }
+  })
 
   return server;
 };
@@ -232,4 +265,4 @@ app.delete("/mcp", (c) => {
 const port = 3000;
 console.log(`Server is running on port ${port}`);
 
-export { app, port };
+export default { fetch: app.fetch, port };
