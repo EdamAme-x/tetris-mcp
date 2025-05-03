@@ -68,7 +68,7 @@ const getServer = async () => {
         ],
       };
 
-      if (isEmpty(await cell.evaluate((node) => node.getAttribute("style")))) {
+      if (!isEmpty(await cell.evaluate((node) => node.getAttribute("style")))) {
         await cell.click();
       }
     }
