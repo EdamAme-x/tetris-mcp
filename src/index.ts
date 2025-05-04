@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { toFetchResponse, toReqRes } from "fetch-to-node";
 import puppeteer from "puppeteer";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 async function createBrowser() {
   const browser = await puppeteer.launch({
@@ -338,19 +339,45 @@ app.post("/mcp", async (c) => {
   }
 });
 
-app.get("/mcp", (c) => {
-  console.log("Received GET MCP request");
-  return c.json(
-    {
-      jsonrpc: "2.0",
-      error: {
-        code: -32000,
-        message: "Method not allowed.",
+app.get("/mcp", async (c) => {
+  const { req, res } = toReqRes(c.req.raw);
+
+  const server = await getServer();
+
+  try {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
+
+    transport.onerror = console.error.bind(console);
+
+    await server.connect(transport);
+
+    await transport.handleRequest(req, res);
+
+    res.on("close", () => {
+      console.log("Request closed");
+      transport.close();
+      server.close();
+    });
+
+    console.log(res);
+
+    return toFetchResponse(res);
+  } catch (e) {
+    console.error("MCP request error:", e);
+    return c.json(
+      {
+        jsonrpc: "2.0",
+        error: {
+          code: -32603,
+          message: "Internal server error",
+        },
+        id: null,
       },
-      id: null,
-    },
-    { status: 405 }
-  );
+      { status: 500 }
+    );
+  }
 });
 
 app.delete("/mcp", (c) => {
